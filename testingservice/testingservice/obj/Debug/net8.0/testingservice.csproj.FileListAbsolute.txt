@@ -1,0 +1,14 @@
+C:\TestService\service2\testingservice\testingservice\bin\Debug\net8.0\testingservice.exe
+C:\TestService\service2\testingservice\testingservice\bin\Debug\net8.0\testingservice.deps.json
+C:\TestService\service2\testingservice\testingservice\bin\Debug\net8.0\testingservice.runtimeconfig.json
+C:\TestService\service2\testingservice\testingservice\bin\Debug\net8.0\testingservice.dll
+C:\TestService\service2\testingservice\testingservice\bin\Debug\net8.0\testingservice.pdb
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.GeneratedMSBuildEditorConfig.editorconfig
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.AssemblyInfoInputs.cache
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.AssemblyInfo.cs
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.csproj.CoreCompileInputs.cache
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.dll
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\refint\testingservice.dll
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.pdb
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\testingservice.genruntimeconfig.cache
+C:\TestService\service2\testingservice\testingservice\obj\Debug\net8.0\ref\testingservice.dll
