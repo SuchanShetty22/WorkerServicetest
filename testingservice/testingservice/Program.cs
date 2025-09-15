@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -47,20 +46,11 @@ namespace testingservice
                 Console.WriteLine("WorkerService stopped.");
             }
         }
-
     }
 
     public class Worker
     {
-        private readonly string logFilePath;
         private readonly int intervalSeconds = 10;
-
-        public Worker()
-        {
-            var logPath = Environment.GetEnvironmentVariable("WORKER_LOG") ?? "./logs/WorkerServiceLog.txt";
-            logFilePath = Path.GetFullPath(logPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(logFilePath));
-        }
 
         public async Task RunAsync(CancellationToken token)
         {
@@ -109,22 +99,6 @@ namespace testingservice
             var logMessage = $"{DateTime.Now:G}: {message}";
             Console.WriteLine(logMessage);
             Console.Out.Flush();
-
-            try
-            {
-                var dir = Path.GetDirectoryName(logFilePath);
-                if (!string.IsNullOrEmpty(dir))
-                {
-                    Directory.CreateDirectory(dir);
-                }
-                File.AppendAllText(logFilePath, logMessage + Environment.NewLine);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[LOGGING ERROR] {ex.Message}");
-                Console.Out.Flush();
-            }
         }
     }
-
 }
