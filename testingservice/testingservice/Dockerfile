@@ -20,13 +20,17 @@ RUN dotnet build "./testingservice.csproj" -c $BUILD_CONFIGURATION -o /app/build
 # Publish the project
 RUN dotnet publish "./testingservice.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# Recommended environment variables for containerized .NET apps
-ENV DOTNET_RUNNING_IN_CONTAINER=true
-ENV DOTNET_NOLOGO=true
-ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+
 
 # Final runtime image
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+
+
+# Recommended environment variables for containerized .NET apps
+ENV DOTNET_RUNNING_IN_CONTAINER=true
+ENV DOTNET_NOLOGO=true
+ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+
 ENTRYPOINT ["dotnet", "testingservice.dll"]
