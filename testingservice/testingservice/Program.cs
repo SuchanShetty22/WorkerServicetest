@@ -10,14 +10,12 @@ namespace testingservice
         {
             Console.WriteLine("WorkerService starting...");
 
-            
-
             try
             {
-                CancellationTokenSource? cts = null;
-                // Create CTS with defensive guard
-                cts = new CancellationTokenSource();
+                // Declare and create CTS inside the try block
+                CancellationTokenSource? cts = new CancellationTokenSource();
 
+                // Handle Ctrl+C
                 Console.CancelKeyPress += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (CTRL+C)...");
@@ -26,6 +24,7 @@ namespace testingservice
                         cts.Cancel();
                 };
 
+                // Handle process exit
                 AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (ProcessExit)...");
@@ -37,7 +36,7 @@ namespace testingservice
 
                 try
                 {
-                    // Run the worker loop and keep Main alive until cancellation
+                    // Keep Main alive while RunAsync is looping
                     await Task.WhenAny(
                         worker.RunAsync(cts.Token),
                         Task.Delay(Timeout.Infinite, cts.Token)
@@ -48,6 +47,10 @@ namespace testingservice
                     Console.WriteLine($"[FATAL ERROR] Exception in worker loop: {ex}");
                     Console.Out.Flush();
                 }
+                finally
+                {
+                    cts.Dispose();
+                }
             }
             catch (Exception ex)
             {
@@ -56,7 +59,6 @@ namespace testingservice
             }
             finally
             {
-                //cts?.Dispose();
                 Console.WriteLine("WorkerService stopped.");
             }
         }
@@ -90,8 +92,7 @@ namespace testingservice
                     }
                     catch (TaskCanceledException)
                     {
-                        // Expected when shutting down
-                        break;
+                        break; // graceful exit
                     }
                     catch (Exception ex)
                     {
