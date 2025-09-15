@@ -10,29 +10,47 @@ namespace testingservice
         static async Task Main(string[] args)
         {
             Console.WriteLine("WorkerService starting...");
-           
-            // Cancellation token for graceful shutdown
-            using var cts = new CancellationTokenSource();
+
+            var cts = new CancellationTokenSource();
+
             Console.CancelKeyPress += (sender, e) =>
             {
-                Console.WriteLine("Stopping WorkerService...");
-               
+                Console.WriteLine("Stopping WorkerService (CTRL+C)...");
                 e.Cancel = true;
-                cts.Cancel();
+                if (!cts.IsCancellationRequested)
+                    cts.Cancel();
             };
 
-            var worker = new Worker();
-            await worker.RunAsync(cts.Token);
+            AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
+            {
+                Console.WriteLine("Stopping WorkerService (ProcessExit)...");
+                if (!cts.IsCancellationRequested)
+                    cts.Cancel();
+            };
+
+            try
+            {
+                var worker = new Worker();
+                await worker.RunAsync(cts.Token);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FATAL ERROR] {ex}");
+            }
+            finally
+            {
+                // ✅ Dispose only when everything has stopped
+                cts.Dispose();
+            }
 
             Console.WriteLine("WorkerService stopped.");
-            
         }
     }
 
     public class Worker
     {
         private readonly string logFilePath;
-        private readonly int intervalSeconds = 10; // log every 10 seconds
+        private readonly int intervalSeconds = 10;
 
         public Worker()
         {
@@ -47,10 +65,14 @@ namespace testingservice
 
             try
             {
-                while (!token.IsCancellationRequested)
+                while (true)
                 {
+                    if (token.IsCancellationRequested)
+                        break;
+
                     WriteLog("I am working");
-                    await Task.Delay(intervalSeconds * 1000, token);
+
+                    await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
                 }
             }
             catch (TaskCanceledException)
@@ -63,30 +85,24 @@ namespace testingservice
             }
         }
 
-
         private void WriteLog(string message)
         {
             var logMessage = $"{DateTime.Now:G}: {message}";
+            Console.WriteLine(logMessage);
 
             try
             {
-                // Console logging
-                Console.WriteLine(logMessage);
-                Console.Out.Flush();  // <-- force immediate flush to Docker stdout
-
-                // Optional file logging
                 var dir = Path.GetDirectoryName(logFilePath);
                 if (!string.IsNullOrEmpty(dir))
+                {
                     Directory.CreateDirectory(dir);
-
+                }
                 File.AppendAllText(logFilePath, logMessage + Environment.NewLine);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[LOGGING ERROR] {ex.Message}");
-                Console.Out.Flush();
             }
         }
-
     }
 }
