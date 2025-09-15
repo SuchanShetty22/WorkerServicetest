@@ -14,7 +14,7 @@ namespace testingservice
 
             try
             {
-                // Defensive guard in case CTS creation itself fails
+                // Create CTS with defensive guard
                 cts = new CancellationTokenSource();
 
                 Console.CancelKeyPress += (sender, e) =>
@@ -33,7 +33,20 @@ namespace testingservice
                 };
 
                 var worker = new Worker();
-                await worker.RunAsync(cts.Token);
+
+                try
+                {
+                    // Run the worker loop and keep Main alive until cancellation
+                    await Task.WhenAny(
+                        worker.RunAsync(cts.Token),
+                        Task.Delay(Timeout.Infinite, cts.Token)
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[FATAL ERROR] Exception in worker loop: {ex}");
+                    Console.Out.Flush();
+                }
             }
             catch (Exception ex)
             {
@@ -42,7 +55,7 @@ namespace testingservice
             }
             finally
             {
-                cts?.Dispose(); // safe cleanup if created
+                cts?.Dispose();
                 Console.WriteLine("WorkerService stopped.");
             }
         }
@@ -60,17 +73,35 @@ namespace testingservice
             {
                 while (!token.IsCancellationRequested)
                 {
-                    WriteLog("I am working");
-                    await Task.Delay(TimeSpan.FromSeconds(10), token); // 10 sec interval
+                    try
+                    {
+                        WriteLog("I am working");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
+                        Console.Out.Flush();
+                    }
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Expected when shutting down
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
+                        Console.Out.Flush();
+                    }
                 }
-            }
-            catch (TaskCanceledException)
-            {
-                WriteLog("Worker cancellation requested.");
             }
             catch (Exception ex)
             {
-                WriteLog($"[FATAL ERROR] {ex}");
+                WriteLog($"[FATAL ERROR in RunAsync] {ex}");
             }
             finally
             {
@@ -78,12 +109,19 @@ namespace testingservice
             }
         }
 
-
         private void WriteLog(string message)
         {
-            var logMessage = $"{DateTime.Now:G}: {message}";
-            Console.WriteLine(logMessage);
-            Console.Out.Flush();
+            try
+            {
+                var logMessage = $"{DateTime.Now:G}: {message}";
+                Console.WriteLine(logMessage);
+                Console.Out.Flush();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LOGGING ERROR] {ex}");
+                Console.Out.Flush();
+            }
         }
     }
 }
