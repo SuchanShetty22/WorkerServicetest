@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -45,20 +46,28 @@ namespace testingservice
                 {
                     try
                     {
-                        await worker.RunAsync(cts.Token);
+                        // Run a single iteration instead of an infinite loop inside RunAsync
+                        await worker.DoWorkOnceAsync(cts.Token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Expected on shutdown
+                        Console.WriteLine("TaskCanceledException caught in Main loop (shutting down)...");
+                        Console.Out.Flush();
+                        break;
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[ERROR] Worker crashed, restarting: {ex}");
                         Console.Out.Flush();
-                        // Small delay before restarting
                         try
                         {
                             await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
                         }
                         catch (TaskCanceledException)
                         {
-                            // Expected on shutdown
+                            Console.WriteLine("TaskCanceledException during restart delay (shutting down)...");
+                            Console.Out.Flush();
                             break;
                         }
                     }
@@ -81,51 +90,48 @@ namespace testingservice
     {
         private readonly int intervalSeconds = 10;
 
-        public async Task RunAsync(CancellationToken token)
+        // Single iteration method for Linux/Docker reliability
+        public async Task DoWorkOnceAsync(CancellationToken token)
         {
-            Console.WriteLine("Worker started.");
+            Console.WriteLine("Worker started iteration.");
             Console.Out.Flush();
 
             try
             {
-                while (!token.IsCancellationRequested)
+                try
                 {
-                    try
-                    {
-                        Console.WriteLine($"I am working: {DateTime.Now:G}");
-                        Console.Out.Flush();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
-                        Console.Out.Flush();
-                    }
+                    Console.WriteLine($"I am working: {DateTime.Now:G}");
+                    Console.Out.Flush();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
+                    Console.Out.Flush();
+                }
 
-                    try
-                    {
-                        // Delay 10 seconds or until token cancellation
-                        await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        // Expected when shutting down
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
-                        Console.Out.Flush();
-                    }
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
+                }
+                catch (TaskCanceledException)
+                {
+                    Console.WriteLine("TaskCanceledException during delay (shutting down iteration)...");
+                    Console.Out.Flush();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
+                    Console.Out.Flush();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
+                Console.WriteLine($"[FATAL ERROR in DoWorkOnceAsync] {ex}");
                 Console.Out.Flush();
             }
             finally
             {
-                Console.WriteLine("Worker stopped.");
+                Console.WriteLine("Worker iteration ended.");
                 Console.Out.Flush();
             }
         }
