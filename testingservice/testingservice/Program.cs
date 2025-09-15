@@ -68,28 +68,25 @@ namespace testingservice
         {
             var logMessage = $"{DateTime.Now:G}: {message}";
 
-            // Always log to console (Kubernetes will capture this)
-            Console.WriteLine(logMessage);
-            Console.Out.Flush();
-
             try
             {
-                var logPath = Environment.GetEnvironmentVariable("WORKER_LOG") ?? "./logs/WorkerServiceLog.txt";
-                var dir = Path.GetDirectoryName(logPath);
+                // Console logging
+                Console.WriteLine(logMessage);
+                Console.Out.Flush();  // <-- force immediate flush to Docker stdout
 
+                // Optional file logging
+                var dir = Path.GetDirectoryName(logFilePath);
                 if (!string.IsNullOrEmpty(dir))
-                {
                     Directory.CreateDirectory(dir);
-                }
 
-                File.AppendAllText(logPath, logMessage + Environment.NewLine);
+                File.AppendAllText(logFilePath, logMessage + Environment.NewLine);
             }
             catch (Exception ex)
             {
-                // If file writing fails, log the error to console so it doesn't go unnoticed
-                Console.WriteLine($"[LOGGING ERROR] Failed to write log to file: {ex.Message}");
-                Console.WriteLine($"[LOGGING ERROR] Original log message was: {logMessage}");
+                Console.WriteLine($"[LOGGING ERROR] {ex.Message}");
+                Console.Out.Flush();
             }
         }
+
     }
 }
