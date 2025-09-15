@@ -44,24 +44,25 @@ namespace testingservice
         public async Task RunAsync(CancellationToken token)
         {
             WriteLog("Worker started.");
-          
-            while (!token.IsCancellationRequested)
+
+            try
             {
-                WriteLog("I am working");
-                
-                try
+                while (!token.IsCancellationRequested)
                 {
+                    WriteLog("I am working");
                     await Task.Delay(intervalSeconds * 1000, token);
                 }
-                catch (TaskCanceledException)
-                {
-                    break;
-                }
             }
-
-            WriteLog("Worker stopped.");
-            
+            catch (TaskCanceledException)
+            {
+                WriteLog("Worker cancellation requested.");
+            }
+            finally
+            {
+                WriteLog("Worker stopped.");
+            }
         }
+
 
         private void WriteLog(string message)
         {
