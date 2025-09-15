@@ -10,12 +10,13 @@ namespace testingservice
         {
             Console.WriteLine("WorkerService starting...");
 
+            // Create CTS inside try, dispose only after worker completes
+            CancellationTokenSource? cts = null;
+
             try
             {
-                // Declare and create CTS inside the try block
-                CancellationTokenSource? cts = new CancellationTokenSource();
+                cts = new CancellationTokenSource();
 
-                // Handle Ctrl+C
                 Console.CancelKeyPress += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (CTRL+C)...");
@@ -24,7 +25,6 @@ namespace testingservice
                         cts.Cancel();
                 };
 
-                // Handle process exit
                 AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (ProcessExit)...");
@@ -34,23 +34,8 @@ namespace testingservice
 
                 var worker = new Worker();
 
-                try
-                {
-                    // Keep Main alive while RunAsync is looping
-                    await Task.WhenAny(
-                        worker.RunAsync(cts.Token),
-                        Task.Delay(Timeout.Infinite, cts.Token)
-                    );
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[FATAL ERROR] Exception in worker loop: {ex}");
-                    Console.Out.Flush();
-                }
-                finally
-                {
-                    cts.Dispose();
-                }
+                // Await worker RunAsync indefinitely until token cancellation
+                await worker.RunAsync(cts.Token);
             }
             catch (Exception ex)
             {
@@ -59,9 +44,12 @@ namespace testingservice
             }
             finally
             {
+                // Dispose only after RunAsync exits
+                cts?.Dispose();
                 Console.WriteLine("WorkerService stopped.");
             }
         }
+
     }
 
     public class Worker
@@ -70,46 +58,39 @@ namespace testingservice
 
         public async Task RunAsync(CancellationToken token)
         {
-            WriteLog("Worker started.");
+            Console.WriteLine("Worker started.");
+            Console.Out.Flush();
 
             try
             {
                 while (!token.IsCancellationRequested)
                 {
-                    try
-                    {
-                        WriteLog("I am working");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
-                        Console.Out.Flush();
-                    }
+                    Console.WriteLine($"I am working: {DateTime.Now:G}");
+                    Console.Out.Flush();
 
                     try
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
+                        await Task.Delay(TimeSpan.FromSeconds(10), token);
                     }
                     catch (TaskCanceledException)
                     {
-                        break; // graceful exit
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
-                        Console.Out.Flush();
+                        break; // exit loop on cancellation
                     }
                 }
             }
             catch (Exception ex)
             {
-                WriteLog($"[FATAL ERROR in RunAsync] {ex}");
+                Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
+                Console.Out.Flush();
             }
             finally
             {
-                WriteLog("Worker stopped.");
+                Console.WriteLine("Worker stopped.");
+                Console.Out.Flush();
             }
         }
+
+
 
         private void WriteLog(string message)
         {
