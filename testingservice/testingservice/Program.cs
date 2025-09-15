@@ -10,10 +10,11 @@ namespace testingservice
         {
             Console.WriteLine("WorkerService starting...");
 
-            CancellationTokenSource? cts = null;
+            
 
             try
             {
+                CancellationTokenSource? cts = null;
                 // Create CTS with defensive guard
                 cts = new CancellationTokenSource();
 
@@ -55,7 +56,7 @@ namespace testingservice
             }
             finally
             {
-                cts?.Dispose();
+                //cts?.Dispose();
                 Console.WriteLine("WorkerService stopped.");
             }
         }
