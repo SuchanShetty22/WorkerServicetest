@@ -61,15 +61,28 @@ namespace testingservice
 
         private void WriteLog(string message)
         {
+            var logMessage = $"{DateTime.Now:G}: {message}";
+
+            // Always log to console (Kubernetes will capture this)
+            Console.WriteLine(logMessage);
+
             try
             {
-                using var writer = new StreamWriter(logFilePath, append: true);
-                writer.WriteLine($"{DateTime.Now:G}: {message}");
+                var logPath = Environment.GetEnvironmentVariable("WORKER_LOG") ?? "./logs/WorkerServiceLog.txt";
+                var dir = Path.GetDirectoryName(logPath);
+
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                File.AppendAllText(logPath, logMessage + Environment.NewLine);
             }
-            catch
+            catch (Exception ex)
             {
-                // fallback to console if log file can't be written
-                Console.WriteLine($"{DateTime.Now:G}: {message}");
+                // If file writing fails, log the error to console so it doesn't go unnoticed
+                Console.WriteLine($"[LOGGING ERROR] Failed to write log to file: {ex.Message}");
+                Console.WriteLine($"[LOGGING ERROR] Original log message was: {logMessage}");
             }
         }
     }
