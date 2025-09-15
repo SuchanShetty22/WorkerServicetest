@@ -17,7 +17,6 @@ namespace testingservice
 
             try
             {
-                // Create CancellationTokenSource inside try/finally
                 using var cts = new CancellationTokenSource();
 
                 // Handle Ctrl+C
@@ -30,7 +29,7 @@ namespace testingservice
                         cts.Cancel();
                 };
 
-                // Handle process exit (e.g., SIGTERM in Kubernetes)
+                // Handle process exit (SIGTERM)
                 AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (ProcessExit)...");
@@ -41,37 +40,25 @@ namespace testingservice
 
                 var worker = new Worker();
 
-                // Keep-alive loop: continuously run worker until canceled
+                // Start worker in background task
+                var workerTask = Task.Run(() => worker.RunAsync(cts.Token));
+
+                Console.WriteLine("Worker loop started.");
+                Console.Out.Flush();
+
+                // Keep Main alive until cancellation
                 while (!cts.Token.IsCancellationRequested)
                 {
-                    try
-                    {
-                        // Run a single iteration instead of an infinite loop inside RunAsync
-                        await worker.DoWorkOnceAsync(cts.Token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        // Expected on shutdown
-                        Console.WriteLine("TaskCanceledException caught in Main loop (shutting down)...");
-                        Console.Out.Flush();
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[ERROR] Worker crashed, restarting: {ex}");
-                        Console.Out.Flush();
-                        try
-                        {
-                            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            Console.WriteLine("TaskCanceledException during restart delay (shutting down)...");
-                            Console.Out.Flush();
-                            break;
-                        }
-                    }
+                    await Task.Delay(1000, cts.Token);
                 }
+
+                // Wait for worker to finish gracefully
+                await workerTask;
+            }
+            catch (TaskCanceledException)
+            {
+                Console.WriteLine("TaskCanceledException caught in Main (shutting down)...");
+                Console.Out.Flush();
             }
             catch (Exception ex)
             {
@@ -90,48 +77,51 @@ namespace testingservice
     {
         private readonly int intervalSeconds = 10;
 
-        // Single iteration method for Linux/Docker reliability
-        public async Task DoWorkOnceAsync(CancellationToken token)
+        public async Task RunAsync(CancellationToken token)
         {
-            Console.WriteLine("Worker started iteration.");
+            Console.WriteLine("Worker started.");
             Console.Out.Flush();
 
             try
             {
-                try
+                while (!token.IsCancellationRequested)
                 {
-                    Console.WriteLine($"I am working: {DateTime.Now:G}");
-                    Console.Out.Flush();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
-                    Console.Out.Flush();
-                }
+                    try
+                    {
+                        Console.WriteLine($"I am working: {DateTime.Now:G}");
+                        Console.Out.Flush();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
+                        Console.Out.Flush();
+                    }
 
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
-                }
-                catch (TaskCanceledException)
-                {
-                    Console.WriteLine("TaskCanceledException during delay (shutting down iteration)...");
-                    Console.Out.Flush();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
-                    Console.Out.Flush();
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        Console.WriteLine("TaskCanceledException during delay (shutting down worker)...");
+                        Console.Out.Flush();
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
+                        Console.Out.Flush();
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FATAL ERROR in DoWorkOnceAsync] {ex}");
+                Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
                 Console.Out.Flush();
             }
             finally
             {
-                Console.WriteLine("Worker iteration ended.");
+                Console.WriteLine("Worker stopped.");
                 Console.Out.Flush();
             }
         }
