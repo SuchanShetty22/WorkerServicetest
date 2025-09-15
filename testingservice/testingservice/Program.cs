@@ -10,12 +10,13 @@ namespace testingservice
         static async Task Main(string[] args)
         {
             Console.WriteLine("WorkerService starting...");
-
+           
             // Cancellation token for graceful shutdown
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (sender, e) =>
             {
                 Console.WriteLine("Stopping WorkerService...");
+               
                 e.Cancel = true;
                 cts.Cancel();
             };
@@ -24,6 +25,7 @@ namespace testingservice
             await worker.RunAsync(cts.Token);
 
             Console.WriteLine("WorkerService stopped.");
+            
         }
     }
 
@@ -42,10 +44,11 @@ namespace testingservice
         public async Task RunAsync(CancellationToken token)
         {
             WriteLog("Worker started.");
-
+          
             while (!token.IsCancellationRequested)
             {
                 WriteLog("I am working");
+                
                 try
                 {
                     await Task.Delay(intervalSeconds * 1000, token);
@@ -57,6 +60,7 @@ namespace testingservice
             }
 
             WriteLog("Worker stopped.");
+            
         }
 
         private void WriteLog(string message)
@@ -65,6 +69,7 @@ namespace testingservice
 
             // Always log to console (Kubernetes will capture this)
             Console.WriteLine(logMessage);
+            Console.Out.Flush();
 
             try
             {
