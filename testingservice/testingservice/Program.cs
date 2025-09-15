@@ -58,41 +58,26 @@ namespace testingservice
 
             try
             {
-                while (true)
+                while (!token.IsCancellationRequested)
                 {
-                    if (token.IsCancellationRequested)
-                        break;
-
-                    try
-                    {
-                        WriteLog("I am working");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
-                        Console.Out.Flush();
-                    }
-
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        // expected when shutting down
-                        break;
-                    }
+                    WriteLog("I am working");
+                    await Task.Delay(TimeSpan.FromSeconds(10), token); // 10 sec interval
                 }
+            }
+            catch (TaskCanceledException)
+            {
+                WriteLog("Worker cancellation requested.");
             }
             catch (Exception ex)
             {
-                WriteLog($"[FATAL ERROR in RunAsync] {ex}");
+                WriteLog($"[FATAL ERROR] {ex}");
             }
             finally
             {
                 WriteLog("Worker stopped.");
             }
         }
+
 
         private void WriteLog(string message)
         {
