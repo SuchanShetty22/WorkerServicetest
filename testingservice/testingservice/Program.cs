@@ -10,13 +10,12 @@ namespace testingservice
         {
             Console.WriteLine("WorkerService starting...");
 
-            // Create CTS inside try, dispose only after worker completes
-            CancellationTokenSource? cts = null;
-
             try
             {
-                cts = new CancellationTokenSource();
+                // Create CTS inside try
+                using var cts = new CancellationTokenSource();
 
+                // Handle Ctrl+C
                 Console.CancelKeyPress += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (CTRL+C)...");
@@ -25,6 +24,7 @@ namespace testingservice
                         cts.Cancel();
                 };
 
+                // Handle process exit (e.g., Kubernetes SIGTERM)
                 AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (ProcessExit)...");
@@ -34,8 +34,21 @@ namespace testingservice
 
                 var worker = new Worker();
 
-                // Await worker RunAsync indefinitely until token cancellation
-                await worker.RunAsync(cts.Token);
+                // Keep-alive: continuously run worker loop and restart if exceptions occur
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await worker.RunAsync(cts.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[ERROR] Worker loop crashed, restarting: {ex}");
+                        Console.Out.Flush();
+                        // Optional: small delay before retry
+                        await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -44,12 +57,10 @@ namespace testingservice
             }
             finally
             {
-                // Dispose only after RunAsync exits
-                cts?.Dispose();
                 Console.WriteLine("WorkerService stopped.");
+                Console.Out.Flush();
             }
         }
-
     }
 
     public class Worker
@@ -61,50 +72,37 @@ namespace testingservice
             Console.WriteLine("Worker started.");
             Console.Out.Flush();
 
-            try
+            while (!token.IsCancellationRequested)
             {
-                while (!token.IsCancellationRequested)
+                try
                 {
                     Console.WriteLine($"I am working: {DateTime.Now:G}");
                     Console.Out.Flush();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
+                    Console.Out.Flush();
+                }
 
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(10), token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        break; // exit loop on cancellation
-                    }
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
+                }
+                catch (TaskCanceledException)
+                {
+                    // Graceful shutdown
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
+                    Console.Out.Flush();
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
-                Console.Out.Flush();
-            }
-            finally
-            {
-                Console.WriteLine("Worker stopped.");
-                Console.Out.Flush();
-            }
-        }
 
-
-
-        private void WriteLog(string message)
-        {
-            try
-            {
-                var logMessage = $"{DateTime.Now:G}: {message}";
-                Console.WriteLine(logMessage);
-                Console.Out.Flush();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[LOGGING ERROR] {ex}");
-                Console.Out.Flush();
-            }
+            Console.WriteLine("Worker stopped.");
+            Console.Out.Flush();
         }
     }
 }
