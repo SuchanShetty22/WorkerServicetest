@@ -8,6 +8,9 @@ namespace testingservice
     {
         static async Task Main(string[] args)
         {
+            // Ensure console output is synchronized for Linux/Docker
+            Console.SetOut(TextWriter.Synchronized(Console.Out));
+
             Console.WriteLine("WorkerService starting...");
             Console.Out.Flush();
 
@@ -49,7 +52,15 @@ namespace testingservice
                         Console.WriteLine($"[ERROR] Worker crashed, restarting: {ex}");
                         Console.Out.Flush();
                         // Small delay before restarting
-                        await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
+                        }
+                        catch (TaskCanceledException)
+                        {
+                            // Expected on shutdown
+                            break;
+                        }
                     }
                 }
             }
