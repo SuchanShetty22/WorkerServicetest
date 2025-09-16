@@ -84,7 +84,7 @@ namespace testingservice
                     try
                     {
                         // Log message to stdout
-                        Console.WriteLine("I am working");
+                        Console.WriteLine($"I am working at {DateTime.UtcNow:HH:mm:ss}");
                         Console.Out.Flush(); // ensures immediate flush
                     }
                     catch (Exception ex)
