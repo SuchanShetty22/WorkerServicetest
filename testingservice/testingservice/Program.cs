@@ -83,35 +83,43 @@ namespace testingservice
                 {
                     try
                     {
+                        // Log message to stdout
                         Console.WriteLine("I am working");
+                        Console.Out.Flush(); // ensures immediate flush
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
+                        Console.Out.Flush();
                     }
 
                     try
                     {
+                        // Delay with cancellation support
                         await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
                     }
                     catch (TaskCanceledException)
                     {
                         Console.WriteLine("TaskCanceledException during delay (shutting down worker)...");
+                        Console.Out.Flush();
                         break;
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
+                        Console.Out.Flush();
                     }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
+                Console.Out.Flush();
             }
             finally
             {
                 Console.WriteLine("Worker stopped.");
+                Console.Out.Flush();
             }
         }
     }
