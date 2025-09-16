@@ -88,7 +88,7 @@ namespace testingservice
                 {
                     try
                     {
-                        Console.WriteLine($"I am working: {DateTime.Now:G}");
+                        Console.WriteLine("I am working");
                         Console.Out.Flush();
                     }
                     catch (Exception ex)
