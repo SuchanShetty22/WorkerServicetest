@@ -9,11 +9,13 @@ namespace testingservice
     {
         static async Task Main(string[] args)
         {
-            // Ensure console output is synchronized for Linux/Docker
-            Console.SetOut(TextWriter.Synchronized(Console.Out));
+            // Ensure Console output auto-flushes for Kubernetes logs
+            Console.SetOut(new StreamWriter(Console.OpenStandardOutput())
+            {
+                AutoFlush = true
+            });
 
             Console.WriteLine("WorkerService starting...");
-            Console.Out.Flush();
 
             try
             {
@@ -23,17 +25,15 @@ namespace testingservice
                 Console.CancelKeyPress += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (CTRL+C)...");
-                    Console.Out.Flush();
                     e.Cancel = true;
                     if (!cts.IsCancellationRequested)
                         cts.Cancel();
                 };
 
-                // Handle process exit (SIGTERM)
+                // Handle process exit (SIGTERM in Kubernetes)
                 AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
                 {
                     Console.WriteLine("Stopping WorkerService (ProcessExit)...");
-                    Console.Out.Flush();
                     if (!cts.IsCancellationRequested)
                         cts.Cancel();
                 };
@@ -44,7 +44,6 @@ namespace testingservice
                 var workerTask = Task.Run(() => worker.RunAsync(cts.Token));
 
                 Console.WriteLine("Worker loop started.");
-                Console.Out.Flush();
 
                 // Keep Main alive until cancellation
                 while (!cts.Token.IsCancellationRequested)
@@ -58,17 +57,14 @@ namespace testingservice
             catch (TaskCanceledException)
             {
                 Console.WriteLine("TaskCanceledException caught in Main (shutting down)...");
-                Console.Out.Flush();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[FATAL ERROR in Main] {ex}");
-                Console.Out.Flush();
             }
             finally
             {
                 Console.WriteLine("WorkerService stopped.");
-                Console.Out.Flush();
             }
         }
     }
@@ -80,7 +76,6 @@ namespace testingservice
         public async Task RunAsync(CancellationToken token)
         {
             Console.WriteLine("Worker started.");
-            Console.Out.Flush();
 
             try
             {
@@ -89,12 +84,10 @@ namespace testingservice
                     try
                     {
                         Console.WriteLine("I am working");
-                        Console.Out.Flush();
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
-                        Console.Out.Flush();
                     }
 
                     try
@@ -104,25 +97,21 @@ namespace testingservice
                     catch (TaskCanceledException)
                     {
                         Console.WriteLine("TaskCanceledException during delay (shutting down worker)...");
-                        Console.Out.Flush();
                         break;
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
-                        Console.Out.Flush();
                     }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
-                Console.Out.Flush();
             }
             finally
             {
                 Console.WriteLine("Worker stopped.");
-                Console.Out.Flush();
             }
         }
     }
