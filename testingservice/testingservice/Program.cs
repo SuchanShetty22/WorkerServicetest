@@ -1,5 +1,5 @@
 ﻿using System;
-using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,69 +9,39 @@ namespace testingservice
     {
         static async Task Main(string[] args)
         {
-            // Ensure Console output auto-flushes for Kubernetes logs
-            Console.SetOut(new StreamWriter(Console.OpenStandardOutput())
-            {
-                AutoFlush = true
-            });
+            using var cts = new CancellationTokenSource();
 
             Console.WriteLine("WorkerService starting...");
 
-            try
+            // Handle Ctrl+C
+            Console.CancelKeyPress += (sender, e) =>
             {
-                using var cts = new CancellationTokenSource();
+                Console.WriteLine("Stopping WorkerService (CTRL+C)...");
+                e.Cancel = true;
+                if (!cts.IsCancellationRequested)
+                    cts.Cancel();
+            };
 
-                // Handle Ctrl+C
-                Console.CancelKeyPress += (sender, e) =>
-                {
-                    Console.WriteLine("Stopping WorkerService (CTRL+C)...");
-                    e.Cancel = true;
-                    if (!cts.IsCancellationRequested)
-                        cts.Cancel();
-                };
-
-                // Handle process exit (SIGTERM in Kubernetes)
-                AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
-                {
-                    Console.WriteLine("Stopping WorkerService (ProcessExit)...");
-                    if (!cts.IsCancellationRequested)
-                        cts.Cancel();
-                };
-
-                var worker = new Worker();
-
-                // Start worker in background task
-                var workerTask = Task.Run(() => worker.RunAsync(cts.Token));
-
-                Console.WriteLine("Worker loop started.");
-
-                // Keep Main alive until cancellation
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    await Task.Delay(1000, cts.Token);
-                }
-
-                // Wait for worker to finish gracefully
-                await workerTask;
-            }
-            catch (TaskCanceledException)
+            // Handle SIGTERM / process exit
+            AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
             {
-                Console.WriteLine("TaskCanceledException caught in Main (shutting down)...");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[FATAL ERROR in Main] {ex}");
-            }
-            finally
-            {
-                Console.WriteLine("WorkerService stopped.");
-            }
+                Console.WriteLine("Stopping WorkerService (ProcessExit)...");
+                if (!cts.IsCancellationRequested)
+                    cts.Cancel();
+            };
+
+            var worker = new Worker();
+            await worker.RunAsync(cts.Token);
+
+            Console.WriteLine("WorkerService stopped.");
         }
     }
 
     public class Worker
     {
         private readonly int intervalSeconds = 10;
+        private readonly HttpClient _httpClient = new HttpClient();
+        private readonly string webhookUrl = "https://webhook.site/ad93c79a-ab56-4d76-bbca-1b5e36f7cfda";
 
         public async Task RunAsync(CancellationToken token)
         {
@@ -83,43 +53,37 @@ namespace testingservice
                 {
                     try
                     {
-                        // Log message to stdout
-                        Console.WriteLine($"I am working at {DateTime.UtcNow:HH:mm:ss}");
-                        Console.Out.Flush(); // ensures immediate flush
+                        // GET request to webhook
+                        var response = await _httpClient.GetAsync(webhookUrl, token);
+                        Console.WriteLine($"Webhook GET status: {response.StatusCode}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[WORKER ERROR] Failed to log message: {ex}");
-                        Console.Out.Flush();
+                        Console.WriteLine($"[WORKER ERROR] Webhook GET failed: {ex.Message}");
                     }
 
                     try
                     {
-                        // Delay with cancellation support
                         await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), token);
                     }
                     catch (TaskCanceledException)
                     {
                         Console.WriteLine("TaskCanceledException during delay (shutting down worker)...");
-                        Console.Out.Flush();
                         break;
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[WORKER ERROR] Delay exception: {ex}");
-                        Console.Out.Flush();
+                        Console.WriteLine($"[WORKER ERROR] Delay exception: {ex.Message}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FATAL ERROR in RunAsync] {ex}");
-                Console.Out.Flush();
+                Console.WriteLine($"[FATAL ERROR in RunAsync] {ex.Message}");
             }
             finally
             {
                 Console.WriteLine("Worker stopped.");
-                Console.Out.Flush();
             }
         }
     }
